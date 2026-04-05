@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Mark attendance — FaceGuard{% endblock %}
+{% block nav %}
+  <a href="/student">Back</a>
+{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>Mark attendance</h1>
+  <p class="small">1) Join the session on the student dashboard. 2) Blink naturally for ~2s. 3) Capture face for verification.</p>
+  <div id="msg"></div>
+  <label for="session_code">Session code</label>
+  <input id="session_code" placeholder="ABC123" maxlength="8">
+  <video id="vid" autoplay playsinline muted></video>
+  <canvas id="cv" hidden></canvas>
+  <button type="button" class="btn" id="start-cam">Start camera</button>
+  <button type="button" class="btn secondary" id="blink" disabled>1 — Record blink (~2s)</button>
+  <button type="button" class="btn" id="mark" disabled>2 — Verify face & mark</button>
+  <p class="small">Optional pose challenge: <button type="button" class="btn secondary" id="pose-left" disabled>I'm facing left</button>
+  <button type="button" class="btn secondary" id="pose-right" disabled>I'm facing right</button></p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const msg = document.getElementById('msg');
+  const vid = document.getElementById('vid');
+  const cv = document.getElementById('cv');
+  let stream;
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+  const params = new URLSearchParams(location.search);
+  const pre = params.get('code');
+  if (pre) document.getElementById('session_code').value = pre.toUpperCase();
+
+  fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (!d.logged_in || d.role !== 'student') window.location.href = '/login';
+  });
+
+  document.getElementById('start-cam').addEventListener('click', async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      vid.srcObject = stream;
+      document.getElementById('blink').disabled = false;
+      document.getElementById('pose-left').disabled = false;
+      document.getElementById('pose-right').disabled = false;
+      show('Camera ready. Blink naturally while recording.', 'ok');
+    } catch (e) {
+      show('Camera unavailable.', 'err');
+    }
+  });
+
+  async function grabFrames(n, intervalMs) {
+    const ctx = cv.getContext('2d');
+    cv.width = vid.videoWidth;
+    cv.height = vid.videoHeight;
+    const frames = [];
+    for (let i = 0; i < n; i++) {
+      ctx.drawImage(vid, 0, 0);
+      frames.push(cv.toDataURL('image/jpeg', 0.75));
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    return frames;
+  }
+
+  document.getElementById('blink').addEventListener('click', async () => {
+    if (!vid.videoWidth) { show('Start the camera first.', 'err'); return; }
+    show('Recording… blink once or twice.', 'info');
+    const frames = await grabFrames(24, 90);
+    const r = await fetch('/api/liveness/verify-blink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frames }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      show(d.error || d.hint || 'Blink not detected — try again, better light.', 'err');
+      return;
+    }
+    show('Liveness OK. Capture face to finish.', 'ok');
+    document.getElementById('mark').disabled = false;
+  });
+
+  async function verifyPose(expected) {
+    const ctx = cv.getContext('2d');
+    cv.width = vid.videoWidth;
+    cv.height = vid.videoHeight;
+    ctx.drawImage(vid, 0, 0);
+    const image = cv.toDataURL('image/jpeg', 0.8);
+    const r = await fetch('/api/liveness/verify-pose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expected, image }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (d.ok) {
+      show('Pose liveness OK. You can mark attendance.', 'ok');
+      document.getElementById('mark').disabled = false;
+    } else {
+      show('Pose not verified (saw: ' + (d.detected || '?') + '). Try again.', 'err');
+    }
+  }
+  document.getElementById('pose-left').addEventListener('click', () => verifyPose('left'));
+  document.getElementById('pose-right').addEventListener('click', () => verifyPose('right'));
+
+  document.getElementById('mark').addEventListener('click', async () => {
+    const session_code = document.getElementById('session_code').value.trim().toUpperCase();
+    if (!session_code) { show('Enter session code', 'err'); return; }
+    const ctx = cv.getContext('2d');
+    cv.width = vid.videoWidth;
+    cv.height = vid.videoHeight;
+    ctx.drawImage(vid, 0, 0);
+    const image = cv.toDataURL('image/jpeg', 0.9);
+    const r = await fetch('/api/attendance/mark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_code, image }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
+    if (d.duplicate) show('Already marked for this session.', 'info');
+    else show('Attendance marked successfully.', 'ok');
+  });
+</script>
+{% endblock %}

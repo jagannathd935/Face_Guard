@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Register face — FaceGuard{% endblock %}
+{% block nav %}
+  <a href="/student">Back</a>
+{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>Register face</h1>
+  <p class="small">Hold still; we capture several frames to build one averaged encoding.</p>
+  <div id="msg"></div>
+  <video id="vid" autoplay playsinline muted></video>
+  <canvas id="cv" hidden></canvas>
+  <button type="button" class="btn" id="start-cam">Start camera</button>
+  <button type="button" class="btn" id="capture" disabled>Capture samples</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const msg = document.getElementById('msg');
+  const vid = document.getElementById('vid');
+  const cv = document.getElementById('cv');
+  let stream;
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+  fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (!d.logged_in || d.role !== 'student') window.location.href = '/login';
+  });
+  document.getElementById('start-cam').addEventListener('click', async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      vid.srcObject = stream;
+      document.getElementById('capture').disabled = false;
+      show('Camera on. Position your face in frame.', 'ok');
+    } catch (e) {
+      show('Camera permission denied or unavailable.', 'err');
+    }
+  });
+  document.getElementById('capture').addEventListener('click', async () => {
+    const ctx = cv.getContext('2d');
+    cv.width = vid.videoWidth;
+    cv.height = vid.videoHeight;
+    const images = [];
+    for (let i = 0; i < 6; i++) {
+      ctx.drawImage(vid, 0, 0);
+      images.push(cv.toDataURL('image/jpeg', 0.85));
+      await new Promise(r => setTimeout(r, 350));
+    }
+    show('Uploading…', 'info');
+    const r = await fetch('/api/face/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
+    show('Registered — LBPH samples: ' + d.lbph_samples + (d.face_recognition_lib ? ', FR samples: ' + d.fr_samples : ''), 'ok');
+  });
+</script>
+{% endblock %}

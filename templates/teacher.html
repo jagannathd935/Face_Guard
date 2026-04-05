@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Teacher — FaceGuard{% endblock %}
+{% block nav %}
+  <a href="/">Home</a>
+  <button type="button" class="btn secondary" id="logout">Log out</button>
+{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>Teacher dashboard</h1>
+  <p class="small">Create a session from the classroom network so student IPs match the same /24 prefix.</p>
+  <div id="msg"></div>
+  <button type="button" class="btn" id="create-session">Generate session code</button>
+  <div id="new-session" style="display:none;">
+    <p>Share this code (expires in 10 minutes):</p>
+    <div class="session-code" id="code-display"></div>
+    <p class="small">Network prefix stored: <span id="net-prefix"></span></p>
+  </div>
+</div>
+<div class="card">
+  <h2>Recent sessions</h2>
+  <ul class="sessions" id="session-list"></ul>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const msg = document.getElementById('msg');
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+  async function gate() {
+    const r = await fetch('/api/me', { credentials: 'same-origin' });
+    const d = await r.json();
+    if (!d.logged_in || d.role !== 'teacher') {
+      window.location.href = '/login';
+      return false;
+    }
+    return true;
+  }
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+    window.location.href = '/login';
+  });
+  document.getElementById('create-session').addEventListener('click', async () => {
+    const r = await fetch('/api/sessions', { method: 'POST', credentials: 'same-origin' });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
+    document.getElementById('new-session').style.display = 'block';
+    document.getElementById('code-display').textContent = d.code;
+    document.getElementById('net-prefix').textContent = d.network_prefix || '—';
+    show('Session created.', 'ok');
+    loadSessions();
+  });
+  async function loadSessions() {
+    const r = await fetch('/api/sessions/mine', { credentials: 'same-origin' });
+    const d = await r.json();
+    const ul = document.getElementById('session-list');
+    ul.innerHTML = '';
+    (d.sessions || []).forEach(s => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span><strong>${s.code}</strong> · expires ${s.expires_at}</span>
+        <span>
+          <a class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.85rem;" href="/api/export/attendance?session_id=${s.id}&format=xlsx">Excel</a>
+          <a class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.85rem;" href="/api/export/attendance?session_id=${s.id}&format=pdf">PDF</a>
+        </span>`;
+      ul.appendChild(li);
+    });
+  }
+  gate().then(ok => { if (ok) loadSessions(); });
+</script>
+{% endblock %}

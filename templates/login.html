@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Login — FaceGuard{% endblock %}
+{% block nav %}
+  <span class="small">Attendance with face + liveness</span>
+{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>Sign in</h1>
+  <p class="small">Teachers create sessions; students join and mark attendance.</p>
+  <div id="msg"></div>
+  <form id="login-form">
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    <label for="role">Role</label>
+    <select id="role" name="role">
+      <option value="student">Student</option>
+      <option value="teacher">Teacher</option>
+    </select>
+    <button type="submit" class="btn">Log in</button>
+    <button type="button" class="btn secondary" id="signup-btn">Create account</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const msg = document.getElementById('msg');
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const role = document.getElementById('role').value;
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Login failed', 'err'); return; }
+    if (d.role !== role) {
+      show('This account is registered as ' + d.role + '. Pick the matching role.', 'err');
+      return;
+    }
+    window.location.href = d.role === 'teacher' ? '/teacher' : '/student';
+  });
+  document.getElementById('signup-btn').addEventListener('click', async () => {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const role = document.getElementById('role').value;
+    if (!username || !password) { show('Enter username and password', 'err'); return; }
+    const r = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, role }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Signup failed', 'err'); return; }
+    show('Account created. You can log in now.', 'ok');
+  });
+</script>
+{% endblock %}

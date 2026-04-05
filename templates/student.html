@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Student — FaceGuard{% endblock %}
+{% block nav %}
+  <a href="/">Home</a>
+  <a href="/register-face">Register face</a>
+  <a href="/attend">Mark attendance</a>
+  <button type="button" class="btn secondary" id="logout">Log out</button>
+{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>Student dashboard</h1>
+  <div id="msg"></div>
+  <p id="face-hint" class="small"></p>
+  <label for="code">Session code (from teacher)</label>
+  <input id="code" placeholder="e.g. ABC123" maxlength="8">
+  <button type="button" class="btn" id="join">Join session</button>
+</div>
+<div class="card">
+  <h2>Next steps</h2>
+  <ol class="small">
+    <li>Register your face once (good lighting, face the camera).</li>
+    <li>Enter the session code your teacher shares, then join.</li>
+    <li>Open <strong>Mark attendance</strong>: blink check, then face capture.</li>
+  </ol>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const msg = document.getElementById('msg');
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+  fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (!d.logged_in || d.role !== 'student') {
+      window.location.href = '/login';
+      return;
+    }
+    fetch('/api/face/status', { credentials: 'same-origin' }).then(r => r.json()).then(fs => {
+      document.getElementById('face-hint').textContent = fs.registered
+        ? 'Face profile is registered.'
+        : 'You have not registered a face yet — use Register face first.';
+    });
+  });
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+    window.location.href = '/login';
+  });
+  document.getElementById('join').addEventListener('click', async () => {
+    const code = document.getElementById('code').value.trim().toUpperCase();
+    if (!code) { show('Enter a code', 'err'); return; }
+    const r = await fetch('/api/sessions/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+      credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Join failed', 'err'); return; }
+    show('Joined session ' + d.code + '. Go to Mark attendance when ready.', 'ok');
+  });
+</script>
+{% endblock %}
