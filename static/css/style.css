@@ -191,13 +191,27 @@ select:focus {
 }
 
 video,
-canvas {
+canvas,
+img.register-preview {
   width: 100%;
   max-width: 480px;
   border-radius: var(--radius);
   background: #000;
   display: block;
   margin: 0 auto 1rem;
+  object-fit: contain;
+  max-height: 360px;
+}
+
+.file-label {
+  display: block;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.file-label .btn {
+  cursor: pointer;
+  display: inline-block;
 }
 
 .session-code {
