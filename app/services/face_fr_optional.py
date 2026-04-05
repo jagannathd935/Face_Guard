@@ -16,8 +16,15 @@ except ImportError:
 def encoding_from_bgr(bgr):
     if not HAS_FACE_RECOGNITION or bgr is None or bgr.size == 0:
         return None
+    h, w = bgr.shape[:2]
+    max_dim = 640
+    if max(h, w) > max_dim:
+        s = max_dim / max(h, w)
+        bgr = cv2.resize(bgr, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
     rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-    boxes = face_recognition.face_locations(rgb, model="hog")
+    boxes = face_recognition.face_locations(
+        rgb, model="hog", number_of_times_to_upsample=0
+    )
     if not boxes:
         return None
     encs = face_recognition.face_encodings(rgb, boxes, num_jitters=1)

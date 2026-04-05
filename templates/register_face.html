@@ -44,19 +44,36 @@
     const images = [];
     for (let i = 0; i < 6; i++) {
       ctx.drawImage(vid, 0, 0);
-      images.push(cv.toDataURL('image/jpeg', 0.85));
+      images.push(cv.toDataURL('image/jpeg', 0.75));
       await new Promise(r => setTimeout(r, 350));
     }
-    show('Uploading…', 'info');
-    const r = await fetch('/api/face/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images }),
-      credentials: 'same-origin'
-    });
-    const d = await r.json();
-    if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
-    show('Registered — LBPH samples: ' + d.lbph_samples + (d.face_recognition_lib ? ', FR samples: ' + d.fr_samples : ''), 'ok');
+    cap.disabled = true;
+    show('Saving face profile (usually a few seconds)…', 'info');
+    try {
+      const r = await fetch('/api/face/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images }),
+        credentials: 'same-origin'
+      });
+      const text = await r.text();
+      let d;
+      try {
+        d = JSON.parse(text);
+      } catch (e) {
+        show('Server did not return JSON. Check that you are logged in as a student.', 'err');
+        return;
+      }
+      if (!r.ok) {
+        show(d.error || ('Request failed (' + r.status + ')'), 'err');
+        return;
+      }
+      show('Registered — LBPH samples: ' + d.lbph_samples + (d.face_recognition_lib ? ', FR samples: ' + d.fr_samples : ''), 'ok');
+    } catch (e) {
+      show('Network error: ' + (e.message || String(e)), 'err');
+    } finally {
+      cap.disabled = false;
+    }
   });
 </script>
 {% endblock %}

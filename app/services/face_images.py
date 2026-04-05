@@ -33,6 +33,11 @@ def _cascade():
 def largest_face_gray(bgr: np.ndarray) -> np.ndarray | None:
     if bgr is None or bgr.size == 0:
         return None
+    h, w = bgr.shape[:2]
+    max_w = 640
+    if w > max_w:
+        s = max_w / float(w)
+        bgr = cv2.resize(bgr, (max_w, int(h * s)), interpolation=cv2.INTER_AREA)
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     faces = _cascade().detectMultiScale(gray, scaleFactor=1.15, minNeighbors=5, minSize=(80, 80))
