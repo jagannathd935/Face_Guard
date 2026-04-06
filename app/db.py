@@ -10,6 +10,10 @@ def get_db():
             detect_types=sqlite3.PARSE_DECLTYPES,
         )
         flask.g.db.row_factory = sqlite3.Row
+        flask.g.db.execute("PRAGMA foreign_keys = ON;")
+        flask.g.db.execute("PRAGMA journal_mode = WAL;")
+        flask.g.db.execute("PRAGMA synchronous = NORMAL;")
+        flask.g.db.execute("PRAGMA busy_timeout = 5000;")
     return flask.g.db
 
 
@@ -82,6 +86,9 @@ def init_db():
             FOREIGN KEY (session_id) REFERENCES class_sessions(id),
             FOREIGN KEY (student_id) REFERENCES users(id)
         );
+
+        CREATE INDEX IF NOT EXISTS idx_sessions_teacher ON class_sessions(teacher_id);
+        CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id);
         """
     )
     _migrate_face_profiles(db)

@@ -109,10 +109,12 @@ def list_teacher_sessions():
     db = get_db()
     rows = db.execute(
         """
-        SELECT id, code, expires_at, created_at
-        FROM class_sessions
-        WHERE teacher_id = ?
-        ORDER BY id DESC
+        SELECT c.id, c.code, c.expires_at, c.created_at, COUNT(a.id) as attendance_count
+        FROM class_sessions c
+        LEFT JOIN attendance a ON a.session_id = c.id
+        WHERE c.teacher_id = ?
+        GROUP BY c.id
+        ORDER BY c.id DESC
         LIMIT 50
         """,
         (session["user_id"],),

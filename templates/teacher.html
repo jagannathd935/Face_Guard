@@ -7,27 +7,56 @@
 {% block body %}
 <div class="card">
   <h1>Teacher dashboard</h1>
-  <p class="small">Create a session from the classroom network so student IPs match the same /24 prefix.</p>
+  <p class="small">Create a session from the classroom network so student IPs match.</p>
   <div id="msg"></div>
   <button type="button" class="btn" id="create-session">Generate session code</button>
-  <div id="new-session" style="display:none;">
-    <p>Share this code (expires in 10 minutes):</p>
+  
+  <div id="new-session" style="display:none; margin-top: 1rem;">
+    <p>Share this code:</p>
     <div class="session-code" id="code-display"></div>
     <p class="small">Network prefix stored: <span id="net-prefix"></span></p>
+    
+    <div style="margin-top: 1.5rem; padding: 1.25rem; background: rgba(0,0,0,0.2); border-radius: var(--radius); border: 1px solid rgba(255,255,255,0.05);">
+      <h3 style="display:flex; align-items:center; gap:0.5rem;">
+        Live Student Feed 
+        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--success); animation: pulse 1.5s infinite; box-shadow: 0 0 8px var(--success);"></span>
+      </h3>
+      <div id="live-feed" style="max-height: 220px; overflow-y: auto; padding-right: 0.5rem;">
+        <p class="small" style="color: var(--text-secondary)">Waiting for students to scan their face...</p>
+      </div>
+    </div>
   </div>
 </div>
+
+<div class="card">
+  <h2>Attendance Trends</h2>
+  <canvas id="attendanceChart" height="100"></canvas>
+</div>
+
 <div class="card">
   <h2>Recent sessions</h2>
   <ul class="sessions" id="session-list"></ul>
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+.feed-item { padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); display: flex; justify-content: space-between;}
+.feed-item:last-child { border-bottom: none; }
+@keyframes slideIn { from { transform: translateX(-15px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+</style>
 <script>
   const msg = document.getElementById('msg');
+  let activeSessionId = null;
+  let pollInterval = null;
+  let chartInstance = null;
+
   function show(t, cls) {
     msg.textContent = t;
     msg.className = 'show ' + (cls || 'info');
   }
+
   async function gate() {
     const r = await fetch('/api/me', { credentials: 'same-origin' });
     const d = await r.json();
@@ -37,35 +66,120 @@
     }
     return true;
   }
+
   document.getElementById('logout').addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
     window.location.href = '/login';
   });
+
   document.getElementById('create-session').addEventListener('click', async () => {
     const r = await fetch('/api/sessions', { method: 'POST', credentials: 'same-origin' });
     const d = await r.json();
     if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
+    
     document.getElementById('new-session').style.display = 'block';
     document.getElementById('code-display').textContent = d.code;
     document.getElementById('net-prefix').textContent = d.network_prefix || '—';
-    show('Session created.', 'ok');
-    loadSessions();
+    show('Session created. Awaiting live attendance...', 'ok');
+    
+    // Start Polling
+    activeSessionId = d.session_id;
+    if (pollInterval) clearInterval(pollInterval);
+    document.getElementById('live-feed').innerHTML = '';
+    pollInterval = setInterval(pollAttendance, 3000);
+    
+    loadSessions(); // update lists and chart
   });
+
+  async function pollAttendance() {
+    if (!activeSessionId) return;
+    const r = await fetch(`/api/attendance/session/${activeSessionId}`, { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const d = await r.json();
+    
+    const feed = document.getElementById('live-feed');
+    if (d.records && d.records.length > 0) {
+      feed.innerHTML = '';
+      d.records.forEach(rec => {
+        const div = document.createElement('div');
+        div.className = 'feed-item';
+        const timeStr = rec.marked_at.split(' ')[1]; // Extract HH:MM:SS
+        div.innerHTML = `<span><span style="color:var(--success); margin-right:0.5rem">●</span> <strong>${rec.username}</strong> verified</span> <span class="small">${timeStr}</span>`;
+        feed.appendChild(div);
+      });
+      feed.scrollTop = feed.scrollHeight; // Auto-scroll
+    }
+  }
+
   async function loadSessions() {
     const r = await fetch('/api/sessions/mine', { credentials: 'same-origin' });
     const d = await r.json();
+    const sessions = d.sessions || [];
+    
+    // Build Session List Structure
     const ul = document.getElementById('session-list');
     ul.innerHTML = '';
-    (d.sessions || []).forEach(s => {
+    sessions.forEach(s => {
       const li = document.createElement('li');
-      li.innerHTML = `<span><strong>${s.code}</strong> · expires ${s.expires_at}</span>
+      li.innerHTML = `<span><strong>${s.code}</strong> <span class="small" style="margin-left: 0.5rem; background:rgba(255,255,255,0.1); padding: 2px 6px; border-radius:4px;">${s.attendance_count} scans</span><br><span class="small" style="opacity: 0.7">Expires ${s.expires_at}</span></span>
         <span>
           <a class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.85rem;" href="/api/export/attendance?session_id=${s.id}&format=xlsx">Excel</a>
           <a class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.85rem;" href="/api/export/attendance?session_id=${s.id}&format=pdf">PDF</a>
         </span>`;
       ul.appendChild(li);
     });
+
+    // Build Analytics Chart
+    const reversed = [...sessions].reverse(); // oldest to newest
+    const labels = reversed.map(s => s.code);
+    const dataPts = reversed.map(s => s.attendance_count);
+
+    renderChart(labels, dataPts);
   }
+
+  function renderChart(labels, data) {
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    
+    if (chartInstance) {
+      chartInstance.data.labels = labels;
+      chartInstance.data.datasets[0].data = data;
+      chartInstance.update();
+      return;
+    }
+    
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Students Attended',
+          data: data,
+          backgroundColor: 'rgba(59, 130, 246, 0.5)',
+          borderColor: 'rgba(59, 130, 246, 1)',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: 'rgba(255,255,255,0.7)', stepSize: 1 },
+            grid: { color: 'rgba(255,255,255,0.1)' }
+          },
+          x: {
+            ticks: { color: 'rgba(255,255,255,0.7)' },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
   gate().then(ok => { if (ok) loadSessions(); });
 </script>
 {% endblock %}

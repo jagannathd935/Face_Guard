@@ -1,24 +1,34 @@
 from __future__ import annotations
 
+import os
+
 import cv2
 import numpy as np
-
-# MediaPipe Face Mesh (legacy API; stable for desktop demos)
 import mediapipe as mp
+from mediapipe.tasks.python import BaseOptions
+from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions
 
-_mp_mesh = None
+# Path to the downloaded model
+_MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "face_landmarker.task"))
 
 
-def _mesh():
-    global _mp_mesh
-    if _mp_mesh is None:
-        _mp_mesh = mp.solutions.face_mesh.FaceMesh(
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
-    return _mp_mesh
+def _get_landmarks(bgr: np.ndarray):
+    """Run FaceLandmarker (Tasks API) and return landmarks for the first face."""
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+    options = FaceLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path=_MODEL_PATH),
+        num_faces=1,
+        min_face_detection_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
+    with FaceLandmarker.create_from_options(options) as landmarker:
+        result = landmarker.detect(mp_image)
+
+    if not result.face_landmarks:
+        return None
+    return result.face_landmarks[0]
 
 
 def _lm_point(lm, w: int, h: int):
@@ -45,13 +55,11 @@ def ear_for_bgr(bgr: np.ndarray) -> float | None:
     if bgr is None or bgr.size == 0:
         return None
     h, w = bgr.shape[:2]
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-    res = _mesh().process(rgb)
-    if not res.multi_face_landmarks:
+    landmarks = _get_landmarks(bgr)
+    if landmarks is None:
         return None
-    lm = res.multi_face_landmarks[0].landmark
-    le = [_lm_point(lm[i], w, h) for i in LEFT_EYE]
-    re = [_lm_point(lm[i], w, h) for i in RIGHT_EYE]
+    le = [_lm_point(landmarks[i], w, h) for i in LEFT_EYE]
+    re = [_lm_point(landmarks[i], w, h) for i in RIGHT_EYE]
     return float((_ear_from_points(le) + _ear_from_points(re)) / 2.0)
 
 
@@ -77,14 +85,12 @@ def head_pose_hint(bgr: np.ndarray) -> str | None:
     if bgr is None or bgr.size == 0:
         return None
     h, w = bgr.shape[:2]
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-    res = _mesh().process(rgb)
-    if not res.multi_face_landmarks:
+    landmarks = _get_landmarks(bgr)
+    if landmarks is None:
         return None
-    lm = res.multi_face_landmarks[0].landmark
-    nose = _lm_point(lm[1], w, h)
-    left_cheek = _lm_point(lm[234], w, h)
-    right_cheek = _lm_point(lm[454], w, h)
+    nose = _lm_point(landmarks[1], w, h)
+    left_cheek = _lm_point(landmarks[234], w, h)
+    right_cheek = _lm_point(landmarks[454], w, h)
     mid_x = (left_cheek[0] + right_cheek[0]) / 2
     if nose[0] < mid_x - w * 0.02:
         return "left"

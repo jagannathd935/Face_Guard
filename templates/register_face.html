@@ -47,7 +47,7 @@
       images.push(cv.toDataURL('image/jpeg', 0.75));
       await new Promise(r => setTimeout(r, 350));
     }
-    cap.disabled = true;
+    document.getElementById('capture').disabled = true;
     show('Saving face profile (usually a few seconds)…', 'info');
     try {
       const r = await fetch('/api/face/register', {
@@ -72,7 +72,7 @@
     } catch (e) {
       show('Network error: ' + (e.message || String(e)), 'err');
     } finally {
-      cap.disabled = false;
+      document.getElementById('capture').disabled = false;
     }
   });
 </script>

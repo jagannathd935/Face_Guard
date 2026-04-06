@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: faceguard-backend
+    env: docker
+    region: ohio # Change based on your target region
+    plan: starter # You can use free/starter
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: true
+      - key: RENDER_DISK_PATH
+        value: /var/data
+    disk:
+      name: faceguard-data
+      mountPath: /var/data
+      sizeGB: 1

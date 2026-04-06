@@ -1,7 +1,8 @@
 import os
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+# Check if deployed on Render with a Persistent Disk mounted at /var/data
+INSTANCE_DIR = os.environ.get("RENDER_DISK_PATH", os.path.join(BASE_DIR, "instance"))
 DATABASE_PATH = os.path.join(INSTANCE_DIR, "faceguard.db")
 FACE_MODEL_DIR = os.path.join(INSTANCE_DIR, "face_models")
 
