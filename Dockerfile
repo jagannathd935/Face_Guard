@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -6,6 +6,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     libglib2.0-0 \
+    libgl1 \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependencies first for faster Docker caching
@@ -20,5 +22,5 @@ COPY . .
 # Expose port (Render automatically uses PORT env var, but good practice to expose 10000)
 EXPOSE 10000
 
-# Set gunicorn to bind to the Render port and use 4 workers
-CMD ["gunicorn", "--workers=4", "--bind=0.0.0.0:10000", "run:app"]
+# Set gunicorn to bind to the Render port and use 1 worker to stay within 512MB free tier RAM
+CMD ["gunicorn", "--workers=1", "--threads=2", "--bind=0.0.0.0:10000", "run:app"]
