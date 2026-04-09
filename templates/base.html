@@ -5,17 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}FaceGuard{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    // Check initial theme before render to avoid flash
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  </script>
 </head>
 <body>
   <header>
     <strong>FaceGuard</strong>
     <nav>
       {% block nav %}{% endblock %}
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
+        <span class="icon">🌙</span>
+      </button>
     </nav>
   </header>
   <main>
     {% block body %}{% endblock %}
   </main>
   {% block scripts %}{% endblock %}
+  <script>
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = themeToggle.querySelector('.icon');
+    
+    function updateIcon(theme) {
+      themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
+
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    updateIcon(currentTheme);
+
+    themeToggle.addEventListener('click', () => {
+      let theme = document.documentElement.getAttribute('data-theme');
+      let newTheme = theme === 'dark' ? 'light' : 'dark';
+      
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateIcon(newTheme);
+    });
+  </script>
 </body>
 </html>
