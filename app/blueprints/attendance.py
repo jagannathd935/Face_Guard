@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import time
+import math
 from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, jsonify, request, session
@@ -14,6 +15,18 @@ from config import FACE_MATCH_TOLERANCE, LBPH_MATCH_MAX_DISTANCE, LIVENESS_TOKEN
 
 bp = Blueprint("attendance", __name__)
 
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371000  # radius of Earth in meters
+    phi_1 = math.radians(lat1)
+    phi_2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = math.sin(delta_phi / 2.0) ** 2 + \
+        math.cos(phi_1) * math.cos(phi_2) * \
+        math.sin(delta_lambda / 2.0) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 def _network_prefix_for_request():
     ip = request.remote_addr or ""
@@ -112,9 +125,12 @@ def mark_attendance():
     db = get_db()
     student_id = session["user_id"]
 
+    stu_lat = data.get("lat")
+    stu_lng = data.get("lng")
+
     row = db.execute(
         """
-        SELECT id, network_prefix, expires_at
+        SELECT id, network_prefix, lat, lng, expires_at
         FROM class_sessions WHERE code = ?
         """,
         (code,),
@@ -129,6 +145,16 @@ def mark_attendance():
         return jsonify({"error": "Session data invalid"}), 500
     if datetime.now(timezone.utc) > exp:
         return jsonify({"error": "Session expired"}), 410
+
+    # Geofence check
+    teach_lat = row["lat"]
+    teach_lng = row["lng"]
+    if teach_lat is not None and teach_lng is not None:
+        if stu_lat is None or stu_lng is None:
+            return jsonify({"error": "Teacher requires GPS location for this session. Please enable GPS."}), 403
+        dist = haversine(teach_lat, teach_lng, stu_lat, stu_lng)
+        if dist > 60: # 60 meters radius
+            return jsonify({"error": f"You are {int(dist)}m away from the classroom. You must be closer."}), 403
 
     prefix = row["network_prefix"]
     student_prefix = _network_prefix_for_request()

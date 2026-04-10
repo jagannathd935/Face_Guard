@@ -42,10 +42,19 @@
     cv.width = vid.videoWidth;
     cv.height = vid.videoHeight;
     const images = [];
+    const steps = [
+      "Look straight ahead...",
+      "Look slightly left...",
+      "Look slightly right...",
+      "Look slightly up...",
+      "Look slightly down...",
+      "Smile slightly..."
+    ];
     for (let i = 0; i < 6; i++) {
+      show(steps[i], 'info');
       ctx.drawImage(vid, 0, 0);
       images.push(cv.toDataURL('image/jpeg', 0.75));
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 600)); // slightly longer wait to allow user to turn head
     }
     document.getElementById('capture').disabled = true;
     show('Saving face profile (usually a few seconds)…', 'info');

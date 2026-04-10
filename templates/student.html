@@ -9,6 +9,9 @@
 {% block body %}
 <div class="card">
   <h1>Student dashboard</h1>
+  <div id="profile-info" class="small" style="margin-bottom: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius);">
+    Loading profile...
+  </div>
   <div id="msg"></div>
   <p id="face-hint" class="small"></p>
   <label for="code">Session code (from teacher)</label>
@@ -41,6 +44,18 @@
         ? 'Face profile is registered.'
         : 'You have not registered a face yet — use Register face first.';
     });
+    
+    // Fetch profile details
+    fetch('/api/profile/me', { credentials: 'same-origin' }).then(r => r.json()).then(pd => {
+      if (pd.has_profile) {
+        document.getElementById('profile-info').innerHTML = `
+          <strong>${pd.profile.full_name}</strong><br>
+          Roll: ${pd.profile.roll_number || 'N/A'} | Dept: ${pd.profile.department || 'N/A'} | Batch: ${pd.profile.batch_year || 'N/A'}
+        `;
+      } else {
+        document.getElementById('profile-info').innerHTML = 'Profile incomplete. <a href="/complete-profile">Complete now</a>';
+      }
+    });
   });
   document.getElementById('logout').addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
@@ -57,7 +72,10 @@
     });
     const d = await r.json();
     if (!r.ok) { show(d.error || 'Join failed', 'err'); return; }
-    show('Joined session ' + d.code + '. Go to Mark attendance when ready.', 'ok');
+    show('Joined session ' + d.code + '. Redirecting to camera...', 'ok');
+    setTimeout(() => {
+      window.location.href = '/attend?code=' + d.code;
+    }, 1000);
   });
 </script>
 {% endblock %}

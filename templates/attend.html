@@ -31,7 +31,13 @@
   }
   const params = new URLSearchParams(location.search);
   const pre = params.get('code');
-  if (pre) document.getElementById('session_code').value = pre.toUpperCase();
+  if (pre) {
+    const sessionInput = document.getElementById('session_code');
+    sessionInput.value = pre.toUpperCase();
+    sessionInput.readOnly = true;
+    sessionInput.style.opacity = '0.7';
+    sessionInput.style.cursor = 'not-allowed';
+  }
 
   fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
     if (!d.logged_in || d.role !== 'student') window.location.href = '/login';
@@ -108,15 +114,31 @@
   document.getElementById('mark').addEventListener('click', async () => {
     const session_code = document.getElementById('session_code').value.trim().toUpperCase();
     if (!session_code) { show('Enter session code', 'err'); return; }
+    
+    let lat = null, lng = null;
+    try {
+      show('Checking distance to classroom...', 'info');
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch (e) {
+      if (!confirm("Could not get GPS location. The server might reject your attendance if the teacher enforced geofencing. Continue?")) {
+        show('Cancelled marking.', 'info');
+        return;
+      }
+    }
+
     const ctx = cv.getContext('2d');
     cv.width = vid.videoWidth;
     cv.height = vid.videoHeight;
     ctx.drawImage(vid, 0, 0);
     const image = cv.toDataURL('image/jpeg', 0.9);
+    
+    show('Verifying face and distance...', 'info');
     const r = await fetch('/api/attendance/mark', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_code, image }),
+      body: JSON.stringify({ session_code, image, lat, lng }),
       credentials: 'same-origin'
     });
     const d = await r.json();

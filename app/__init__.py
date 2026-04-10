@@ -22,7 +22,7 @@ def create_app():
 
     db.init_app(app)
 
-    from app.blueprints import auth_bp, sessions_bp, face_bp, attendance_bp, export_bp, pages_bp
+    from app.blueprints import auth_bp, sessions_bp, face_bp, attendance_bp, export_bp, pages_bp, admin_bp
 
     app.register_blueprint(pages_bp)
     app.register_blueprint(auth_bp, url_prefix="/api")
@@ -30,5 +30,6 @@ def create_app():
     app.register_blueprint(face_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/api")
     app.register_blueprint(export_bp, url_prefix="/api")
+    app.register_blueprint(admin_bp, url_prefix="/api/admin")
 
     return app

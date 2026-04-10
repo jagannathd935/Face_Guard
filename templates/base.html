@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}FaceGuard{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#d946ef">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
   <script>
     // Check initial theme before render to avoid flash
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -44,6 +47,29 @@
       localStorage.setItem('theme', newTheme);
       updateIcon(newTheme);
     });
+
+    // Scroll Reveal Animations
+    const revealElements = document.querySelectorAll('.reveal');
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting) {
+          entry.target.classList.add('active');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    revealElements.forEach(el => revealObserver.observe(el));
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js').then(registration => {
+          console.log('SW registered: ', registration.scope);
+        }).catch(err => {
+          console.log('SW registration failed: ', err);
+        });
+      });
+    }
   </script>
 </body>
 </html>

@@ -10,12 +10,17 @@ def home():
         if r == "teacher":
             return redirect(url_for("pages.teacher"))
         return redirect(url_for("pages.student"))
-    return redirect(url_for("pages.login_page"))
+    return render_template("index.html")
 
 
 @bp.route("/login")
 def login_page():
     return render_template("login.html")
+
+
+@bp.route("/forgot-password")
+def forgot_password_page():
+    return render_template("forgot_password.html")
 
 
 @bp.route("/teacher")
@@ -36,3 +41,16 @@ def register_face_page():
 @bp.route("/attend")
 def attend_page():
     return render_template("attend.html")
+
+
+@bp.route("/complete-profile")
+def complete_profile_page():
+    if not session.get("user_id"):
+        return redirect(url_for("pages.home"))
+    return render_template("profile_setup.html")
+
+
+@bp.route("/admin")
+def admin_page():
+    return render_template("admin.html")
+

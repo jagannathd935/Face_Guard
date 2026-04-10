@@ -7,10 +7,44 @@
 {% block body %}
 <div class="card">
   <h1>Teacher dashboard</h1>
+  <div id="profile-info" class="small" style="margin-bottom: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius);">
+    Loading profile...
+  </div>
   <p class="small">Create a session from the classroom network so student IPs match.</p>
   <div id="msg"></div>
-  <button type="button" class="btn" id="create-session">Generate session code</button>
+  <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-end;">
+    <div style="flex: 1; min-width: 200px;">
+      <label for="subject-select">Select Subject</label>
+      <select id="subject-select" style="margin-bottom: 0;">
+        <option value="">Loading subjects...</option>
+      </select>
+    </div>
+    <button type="button" class="btn" id="create-session" style="margin: 0;">Generate session</button>
+    <button type="button" class="btn secondary" id="export-master" style="margin: 0;">Download Master Sheet</button>
+  </div>
   
+  <div id="at-risk-container" style="display: none; margin-bottom: 1.5rem; background: rgba(239,68,68,0.1); border: 1px solid var(--error); border-radius: var(--radius); padding: 1rem;">
+    <h3 style="color: var(--error); margin: 0 0 0.5rem 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      At-Risk Students (< 75% Attendance)
+    </h3>
+    <div id="at-risk-list" class="small" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+  </div>
+  
+  <details style="margin-bottom: 1.5rem;">
+    <summary class="small" style="cursor: pointer; color: var(--accent);">+ Add a new subject</summary>
+    <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--glass-border); margin-top: 0.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+      <div style="flex: 1; min-width: 150px;">
+        <label for="new-subj-name" style="margin-bottom: 0.2rem;">Subject Name</label>
+        <input type="text" id="new-subj-name" placeholder="e.g. Data Structures" style="margin-bottom: 0;">
+      </div>
+      <div style="flex: 1; min-width: 150px;">
+        <label for="new-subj-code" style="margin-bottom: 0.2rem;">Subject Course Code</label>
+        <input type="text" id="new-subj-code" placeholder="e.g. CS101" style="margin-bottom: 0;">
+      </div>
+      <button type="button" class="btn secondary" id="save-subj" style="margin: 0;">Save Subject</button>
+    </div>
+  </details>
   <div id="new-session" style="display:none; margin-top: 1rem;">
     <p>Share this code:</p>
     <div class="session-code" id="code-display"></div>
@@ -64,6 +98,19 @@
       window.location.href = '/login';
       return false;
     }
+    
+    // Fetch profile
+    const pr = await fetch('/api/profile/me', { credentials: 'same-origin' });
+    const pd = await pr.json();
+    if (pd.has_profile) {
+      document.getElementById('profile-info').innerHTML = `
+        <strong>${pd.profile.full_name}</strong><br>
+        Emp ID: ${pd.profile.employee_id || 'N/A'} | Dept: ${pd.profile.department || 'N/A'} | ${pd.profile.designation || 'Teacher'}
+      `;
+    } else {
+      document.getElementById('profile-info').innerHTML = 'Profile incomplete. <a href="/complete-profile">Complete now</a>';
+    }
+    
     return true;
   }
 
@@ -72,15 +119,77 @@
     window.location.href = '/login';
   });
 
+  document.getElementById('subject-select').addEventListener('change', () => {
+    loadSessions();
+    loadAtRisk();
+  });
+
+  async function loadAtRisk() {
+    const sub_id = document.getElementById('subject-select').value;
+    const container = document.getElementById('at-risk-container');
+    const list = document.getElementById('at-risk-list');
+    
+    if (!sub_id) {
+      container.style.display = 'none';
+      return;
+    }
+
+    const r = await fetch(`/api/subjects/${sub_id}/at-risk`, { credentials: 'same-origin' });
+    const d = await r.json();
+    
+    if (!r.ok || !d.at_risk || d.at_risk.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+    list.innerHTML = '';
+    
+    d.at_risk.forEach(st => {
+      const el = document.createElement('div');
+      el.style.display = 'flex';
+      el.style.justifyContent = 'space-between';
+      el.style.background = 'rgba(0,0,0,0.2)';
+      el.style.padding = '0.5rem';
+      el.style.borderRadius = '4px';
+      el.innerHTML = `
+        <span><strong>${st.name}</strong> (${st.roll})</span>
+        <span style="color: var(--error); font-weight: 600;">${st.percentage}% (${st.attended}/${st.total})</span>
+      `;
+      list.appendChild(el);
+    });
+  }
+
   document.getElementById('create-session').addEventListener('click', async () => {
-    const r = await fetch('/api/sessions', { method: 'POST', credentials: 'same-origin' });
+    const subject_id = document.getElementById('subject-select').value;
+    if (!subject_id) { show('Please select a subject first', 'err'); return; }
+
+    let lat = null, lng = null;
+    try {
+      show('Acquiring secure GPS lock...', 'info');
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch (e) {
+      if (!confirm("Could not get your GPS location. Create session anyway? (Students won't have proximity checks)")) {
+        show('Session creation cancelled.', 'info');
+        return;
+      }
+    }
+
+    const r = await fetch('/api/sessions', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject_id, lat, lng }),
+      credentials: 'same-origin' 
+    });
     const d = await r.json();
     if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
     
     document.getElementById('new-session').style.display = 'block';
     document.getElementById('code-display').textContent = d.code;
     document.getElementById('net-prefix').textContent = d.network_prefix || '—';
-    show('Session created. Awaiting live attendance...', 'ok');
+    show('Session created with Geo-Lock successfully.', 'ok');
     
     // Start Polling
     activeSessionId = d.session_id;
@@ -89,6 +198,12 @@
     pollInterval = setInterval(pollAttendance, 3000);
     
     loadSessions(); // update lists and chart
+  });
+
+  document.getElementById('export-master').addEventListener('click', () => {
+    const subject_id = document.getElementById('subject-select').value;
+    if (!subject_id) { show('Please select a subject first to fetch its Master Roster.', 'err'); return; }
+    window.location.href = `/api/export/subject?subject_id=${subject_id}`;
   });
 
   async function pollAttendance() {
@@ -121,7 +236,7 @@
     ul.innerHTML = '';
     sessions.forEach(s => {
       const li = document.createElement('li');
-      li.innerHTML = `<span><strong>${s.code}</strong> <span class="small" style="margin-left: 0.5rem; background:rgba(255,255,255,0.1); padding: 2px 6px; border-radius:4px;">${s.attendance_count} scans</span><br><span class="small" style="opacity: 0.7">Expires ${s.expires_at}</span></span>
+      li.innerHTML = `<span><strong>${s.code}</strong> <span class="small" style="color:var(--text-secondary)">(${s.subject_name})</span> <span class="small" style="margin-left: 0.5rem; background:rgba(255,255,255,0.1); padding: 2px 6px; border-radius:4px;">${s.attendance_count} scans</span><br><span class="small" style="opacity: 0.7">Expires ${s.expires_at}</span></span>
         <span>
           <a class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.85rem;" href="/api/export/attendance?session_id=${s.id}&format=xlsx">Excel</a>
           <a class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.85rem;" href="/api/export/attendance?session_id=${s.id}&format=pdf">PDF</a>
@@ -180,6 +295,37 @@
     });
   }
 
-  gate().then(ok => { if (ok) loadSessions(); });
+  async function loadSubjects() {
+    const r = await fetch('/api/subjects');
+    if (!r.ok) return;
+    const d = await r.json();
+    const sel = document.getElementById('subject-select');
+    sel.innerHTML = '<option value="">-- Choose Subject --</option>';
+    d.subjects.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.code} - ${s.name}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  document.getElementById('save-subj').addEventListener('click', async () => {
+    const name = document.getElementById('new-subj-name').value.trim();
+    const code = document.getElementById('new-subj-code').value.trim();
+    if (!name || !code) return;
+    const r = await fetch('/api/subjects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, code })
+    });
+    if (r.ok) {
+      document.getElementById('new-subj-name').value = '';
+      document.getElementById('new-subj-code').value = '';
+      show('Subject added!', 'ok');
+      loadSubjects();
+    }
+  });
+
+  gate().then(ok => { if (ok) { loadSubjects(); loadSessions(); } });
 </script>
 {% endblock %}

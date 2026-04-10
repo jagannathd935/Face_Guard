@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Welcome to FaceGuard{% endblock %}
+{% block nav %}
+  <a href="{{ url_for('pages.login_page') }}" class="btn" style="margin: 0;">Log In / Sign Up</a>
+{% endblock %}
+{% block body %}
+<!-- Optional wider container override for Landing Page if needed -->
+<style>
+  main {
+    max-width: 1000px !important;
+  }
+</style>
+
+<div class="twocol-hero reveal">
+  <div class="hero-content">
+    <h1 style="font-size: 3rem; background: linear-gradient(135deg, var(--accent), #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">The Future of Attendance</h1>
+    <p class="lead" style="font-size: 1.15rem; color: var(--text-secondary); margin-bottom: 2rem; line-height: 1.6;">FaceGuard uses deep learning, real-time face recognition, and robust liveness detection to permanently eliminate proxy attendance and ensure secure, frictionless class management.</p>
+    <a href="{{ url_for('pages.login_page') }}" class="btn">Get Started Now</a>
+    <a href="#timeline" class="btn secondary">How It Works</a>
+  </div>
+  <div class="hero-visual">
+    <div class="scanner-mockup">
+      <span class="mockup-face">👤</span>
+    </div>
+  </div>
+</div>
+
+<div id="features" class="feature-grid">
+  <div class="card feature-card reveal">
+    <div class="feature-icon">🤖</div>
+    <h3>AI Face Recognition</h3>
+    <p>Instantly verifies student identity using highly accurate facial feature matching against stored encodings.</p>
+  </div>
+  
+  <div class="card feature-card reveal">
+    <div class="feature-icon">👀</div>
+    <h3>Liveness Detection</h3>
+    <p>Advanced anti-spoofing techniques detect real human presence and completely prevent photo or video bypasses.</p>
+  </div>
+  
+  <div class="card feature-card reveal">
+    <div class="feature-icon">🔐</div>
+    <h3>Secure Sessions</h3>
+    <p>Teachers generate time-limited, unique session codes that restrict attendance marking to verified environments.</p>
+  </div>
+</div>
+
+<h2 class="reveal" id="timeline" style="text-align: center; margin-top: 4rem;">How FaceGuard Works</h2>
+<div class="timeline">
+  <div class="timeline-item reveal">
+    <div class="timeline-icon">🧑‍🏫</div>
+    <div class="timeline-content">
+      <h3>1. Create Session</h3>
+      <p>The teacher generates a secure, time-limited 6-digit session code in their dedicated dashboard and shares it with the class.</p>
+    </div>
+  </div>
+  <div class="timeline-item reveal">
+    <div class="timeline-icon">📷</div>
+    <div class="timeline-content">
+      <h3>2. Verify Identity</h3>
+      <p>Students enter the session code and their camera activates. FaceGuard uses AI to ensure it's a live person and matches their face to internal records.</p>
+    </div>
+  </div>
+  <div class="timeline-item reveal">
+    <div class="timeline-icon">✅</div>
+    <div class="timeline-content">
+      <h3>3. Mark Present</h3>
+      <p>Once identity and liveness are confirmed, attendance is instantly and immutably recorded in the database, with analytics available for the teacher.</p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

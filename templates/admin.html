@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — FaceGuard{% endblock %}
+{% block nav %}
+  <span class="small" id="user-info">Loading...</span>
+  <button id="logout" class="btn secondary" style="margin:0; padding:0.4rem 1rem;">Logout</button>
+{% endblock %}
+{% block body %}
+<div class="card" style="max-width: 900px;">
+  <h1>Admin Dashboard</h1>
+  <p class="small">Manage system access and monitor users.</p>
+  <div id="msg"></div>
+
+  <h2 style="margin-top: 2rem;">System Users</h2>
+  <div style="background: var(--input-bg); border-radius: var(--radius); padding: 1rem; border: 1px solid var(--glass-border); overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; text-align: left; color: var(--text-primary);">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--glass-border);">
+          <th style="padding: 0.8rem; font-weight: 600;">ID</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Username</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Role</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Created At</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="user-list">
+        <tr><td colspan="5" style="text-align:center; padding:1rem;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 style="margin-top: 3rem;">Recent Audit Logs</h2>
+  <div style="background: var(--input-bg); border-radius: var(--radius); padding: 1rem; border: 1px solid var(--glass-border); overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; text-align: left; color: var(--text-primary);">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--glass-border);">
+          <th style="padding: 0.8rem; font-weight: 600;">ID</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Admin</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Action</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Target</th>
+          <th style="padding: 0.8rem; font-weight: 600;">Timestamp</th>
+        </tr>
+      </thead>
+      <tbody id="audit-list">
+        <tr><td colspan="5" style="text-align:center; padding:1rem;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const msg = document.getElementById('msg');
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+
+  async function loadUsers() {
+    const r = await fetch('/api/admin/users');
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Failed to load users', 'err'); return; }
+    
+    const tbody = document.getElementById('user-list');
+    tbody.innerHTML = '';
+    
+    if (d.users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1rem;">No users found.</td></tr>';
+      return;
+    }
+    
+    d.users.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--glass-border)';
+      
+      tr.innerHTML = `
+        <td style="padding: 0.8rem;">${u.id}</td>
+        <td style="padding: 0.8rem; font-weight: bold; color: var(--accent);">${u.username}</td>
+        <td style="padding: 0.8rem;">${u.role.toUpperCase()}</td>
+        <td style="padding: 0.8rem;">${u.created_at}</td>
+        <td style="padding: 0.8rem;">
+          <button class="btn secondary" style="padding:0.4rem 0.8rem; font-size:0.8rem; color:var(--error); border-color:var(--error);" onclick="deleteUser(${u.id})">Delete</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function getMe() {
+    const r = await fetch('/api/me');
+    const d = await r.json();
+    if (!d.logged_in) return;
+    document.getElementById('user-info').innerHTML = `<strong>Admin:</strong> ${d.username} <span style="margin:0 10px;">|</span> <strong>Org:</strong> <span style="color:var(--accent);">${d.org_code}</span>`;
+  }
+
+  async function loadLogs() {
+    const r = await fetch('/api/admin/audit-logs');
+    const d = await r.json();
+    if (!r.ok) return;
+    
+    const tbody = document.getElementById('audit-list');
+    tbody.innerHTML = '';
+    
+    if (d.logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1rem;">No actions logged yet.</td></tr>';
+      return;
+    }
+    
+    d.logs.forEach(l => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--glass-border)';
+      tr.innerHTML = `
+        <td style="padding: 0.8rem;">${l.id}</td>
+        <td style="padding: 0.8rem;">${l.admin_name}</td>
+        <td style="padding: 0.8rem;"><span style="background:var(--error); padding:2px 6px; border-radius:4px; font-size:0.8rem;">${l.action_type}</span></td>
+        <td style="padding: 0.8rem; font-weight:bold;">${l.target}</td>
+        <td style="padding: 0.8rem; opacity:0.8;">${l.created_at}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function deleteUser(id) {
+    if (!confirm('Are you sure you want to completely delete this user and all associated data?')) return;
+    
+    const r = await fetch('/api/admin/users/' + id, { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) { show(d.error || 'Failed to delete user', 'err'); return; }
+    
+    show('User ' + id + ' permanently deleted.', 'ok');
+    loadUsers();
+    setTimeout(loadLogs, 100);
+  }
+
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login';
+  });
+
+  getMe();
+  loadUsers();
+  loadLogs();
+</script>
+{% endblock %}

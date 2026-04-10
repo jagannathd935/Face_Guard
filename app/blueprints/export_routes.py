@@ -84,3 +84,64 @@ def export_attendance():
             headers={"Content-Disposition": f"attachment; filename=attendance_{sess['code']}.pdf"},
         )
     return jsonify({"error": "format must be xlsx or pdf"}), 400
+
+@bp.route("/export/subject", methods=["GET"])
+@login_required("teacher")
+def export_subject():
+    sub_id = request.args.get("subject_id", type=int)
+    if not sub_id:
+        return jsonify({"error": "subject_id required"}), 400
+        
+    db = get_db()
+    sbj = db.execute("SELECT name, code FROM subjects WHERE id = ? AND teacher_id = ?", (sub_id, session["user_id"])).fetchone()
+    if not sbj:
+        return jsonify({"error": "Subject not found or unauthorized"}), 403
+        
+    sessions = db.execute("SELECT id, code, strftime('%m-%d', created_at) as date FROM class_sessions WHERE subject_id = ? ORDER BY id", (sub_id,)).fetchall()
+    if not sessions:
+        return jsonify({"error": "No sessions for this subject yet"}), 400
+        
+    session_ids = [s["id"] for s in sessions]
+    s_ids_str = ",".join("?" for _ in session_ids)
+    
+    rows = db.execute(f"""
+        SELECT a.session_id, u.username, p.full_name, p.roll_number
+        FROM attendance a
+        JOIN users u ON u.id = a.student_id
+        LEFT JOIN student_profiles p ON p.user_id = u.id
+        WHERE a.session_id IN ({s_ids_str})
+    """, session_ids).fetchall()
+    
+    data = []
+    for r in rows:
+        data.append({
+            "session_id": r["session_id"],
+            "Username": r["username"],
+            "Student Name": r["full_name"] or r["username"],
+            "Roll No.": r["roll_number"] or "N/A"
+        })
+    
+    df = pd.DataFrame(data)
+    if df.empty:
+        return jsonify({"error": "No attendance records found for this subject."}), 400
+        
+    mapping = {s["id"]: f"{s['code']} ({s['date']})" for s in sessions}
+    df['Session'] = df['session_id'].map(mapping)
+    df['Status'] = "Present"
+    
+    pivot = df.pivot_table(index=['Student Name', 'Username', 'Roll No.'], columns='Session', values='Status', aggfunc='first', fill_value="Absent")
+    pivot.reset_index(inplace=True)
+    
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        pivot.to_excel(w, index=False, sheet_name="Master Analytics")
+    buf.seek(0)
+    
+    safe_name = sbj['name'].replace(" ", "_")
+    return Response(
+        buf.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=MasterAnalytics_{safe_name}.xlsx"
+        },
+    )

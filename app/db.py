@@ -46,18 +46,33 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
+            role TEXT NOT NULL CHECK(role IN ('teacher', 'student', 'admin')),
+            org_code TEXT NOT NULL,
+            security_question TEXT,
+            security_answer_hash TEXT,
             created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS subjects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            code TEXT NOT NULL,
+            teacher_id INTEGER NOT NULL,
+            FOREIGN KEY (teacher_id) REFERENCES users(id)
         );
 
         CREATE TABLE IF NOT EXISTS class_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE NOT NULL,
             teacher_id INTEGER NOT NULL,
+            subject_id INTEGER NOT NULL,
             network_prefix TEXT,
+            lat REAL,
+            lng REAL,
             expires_at TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (teacher_id) REFERENCES users(id)
+            FOREIGN KEY (teacher_id) REFERENCES users(id),
+            FOREIGN KEY (subject_id) REFERENCES subjects(id)
         );
 
         CREATE TABLE IF NOT EXISTS session_joins (
@@ -89,6 +104,34 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_sessions_teacher ON class_sessions(teacher_id);
         CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id);
+
+        CREATE TABLE IF NOT EXISTS student_profiles (
+            user_id INTEGER PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            roll_number TEXT,
+            department TEXT,
+            batch_year TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS teacher_profiles (
+            user_id INTEGER PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            employee_id TEXT,
+            department TEXT,
+            designation TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            org_code TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            target TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (admin_id) REFERENCES users(id)
+        );
         """
     )
     _migrate_face_profiles(db)

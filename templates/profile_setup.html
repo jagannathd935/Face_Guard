@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Complete Profile — FaceGuard{% endblock %}
+{% block body %}
+<div class="card" style="max-width: 500px;">
+  <h1>Complete Your Profile</h1>
+  <p class="small">Please fill in your details to continue.</p>
+  <div id="msg"></div>
+  
+  <form id="profile-form">
+    <!-- Common Fields -->
+    <label for="full_name">Full Name *</label>
+    <input id="full_name" name="full_name" required>
+
+    <label for="security_question">Account Recovery Question *</label>
+    <select id="security_question" name="security_question" required>
+      <option value="">Select a question...</option>
+      <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+      <option value="What was your childhood nickname?">What was your childhood nickname?</option>
+      <option value="In what city did your parents meet?">In what city did your parents meet?</option>
+      <option value="What is the name of your favorite childhood teacher?">What is your favorite teacher's name?</option>
+    </select>
+
+    <label for="security_answer">Recovery Answer *</label>
+    <input id="security_answer" name="security_answer" required>
+    
+    <!-- Student specific fields -->
+    <div id="student-fields" style="display: none;">
+      <label for="roll_number">Roll Number</label>
+      <input id="roll_number" name="roll_number">
+      
+      <label for="student_department">Department</label>
+      <input id="student_department" name="department">
+      
+      <label for="batch_year">Batch / Year</label>
+      <input id="batch_year" name="batch_year">
+    </div>
+    
+    <!-- Teacher specific fields -->
+    <div id="teacher-fields" style="display: none;">
+      <label for="employee_id">Employee ID</label>
+      <input id="employee_id" name="employee_id">
+      
+      <label for="teacher_department">Department</label>
+      <input id="teacher_department" name="department">
+      
+      <label for="designation">Designation</label>
+      <input id="designation" name="designation">
+    </div>
+    
+    <button type="submit" class="btn" style="margin-top:1rem;">Save Profile</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let userRole = null;
+  const msg = document.getElementById('msg');
+  
+  function show(t, cls) {
+    msg.textContent = t;
+    msg.className = 'show ' + (cls || 'info');
+  }
+
+  // Fetch current user role
+  async function loadUser() {
+    const r = await fetch('/api/me');
+    const d = await r.json();
+    if (!d.logged_in) {
+      window.location.href = '/login';
+      return;
+    }
+    userRole = d.role;
+    if (userRole === 'student') {
+      document.getElementById('student-fields').style.display = 'block';
+    } else if (userRole === 'teacher') {
+      document.getElementById('teacher-fields').style.display = 'block';
+    }
+  }
+
+  document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const payload = {
+      full_name: document.getElementById('full_name').value.trim(),
+      security_question: document.getElementById('security_question').value.trim(),
+      security_answer: document.getElementById('security_answer').value.trim()
+    };
+
+    if (userRole === 'student') {
+      payload.roll_number = document.getElementById('roll_number').value.trim();
+      payload.department = document.getElementById('student_department').value.trim();
+      payload.batch_year = document.getElementById('batch_year').value.trim();
+    } else if (userRole === 'teacher') {
+      payload.employee_id = document.getElementById('employee_id').value.trim();
+      payload.department = document.getElementById('teacher_department').value.trim();
+      payload.designation = document.getElementById('designation').value.trim();
+    }
+
+    const r = await fetch('/api/profile/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const d = await r.json();
+    if (!r.ok) {
+      show(d.error || 'Failed to save profile', 'err');
+      return;
+    }
+    
+    window.location.href = userRole === 'teacher' ? '/teacher' : '/student';
+  });
+
+  loadUser();
+</script>
+{% endblock %}
