@@ -58,18 +58,31 @@ def register_face():
         return jsonify({"error": "Could not build face profile"}), 400
 
     db = get_db()
-    db.execute(
-        """
-        INSERT INTO face_profiles (user_id, fr_encoding_json, lbph_model_relpath, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
-        ON CONFLICT(user_id) DO UPDATE SET
-            fr_encoding_json = COALESCE(excluded.fr_encoding_json, fr_encoding_json),
-            lbph_model_relpath = COALESCE(excluded.lbph_model_relpath, lbph_model_relpath),
-            updated_at = datetime('now')
-        """,
-        (uid, fr_json, lbph_rel),
-    )
-    db.commit()
+    try:
+        row = db.execute("SELECT user_id, fr_encoding_json, lbph_model_relpath FROM face_profiles WHERE user_id = ?", (uid,)).fetchone()
+        if row:
+            db.execute(
+                """
+                UPDATE face_profiles
+                SET fr_encoding_json = ?, lbph_model_relpath = ?, updated_at = datetime('now')
+                WHERE user_id = ?
+                """,
+                (fr_json if fr_json else row["fr_encoding_json"], lbph_rel if lbph_rel else row["lbph_model_relpath"], uid)
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO face_profiles (user_id, fr_encoding_json, lbph_model_relpath, updated_at)
+                VALUES (?, ?, ?, datetime('now'))
+                """,
+                (uid, fr_json, lbph_rel)
+            )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.error(f"Failed to upsert face profile for user {uid}: {e}")
+        return jsonify({"error": f"Database error: {e}"}), 500
 
     return jsonify(
         {
