@@ -32,4 +32,22 @@ def create_app():
     app.register_blueprint(export_bp, url_prefix="/api")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
 
+    from flask import request, jsonify
+    from werkzeug.exceptions import HTTPException
+    
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        # Pass through HTTP errors
+        if isinstance(e, HTTPException):
+            return e
+
+        # If it's an API route, return a JSON response
+        if request.path.startswith('/api/'):
+            import logging
+            logging.error(f"API Error: {e}", exc_info=True)
+            return jsonify(error="Internal Server Error: " + str(e)), 500
+            
+        # Return default 500 HTML page for non-API routes
+        return "Internal Server Error", 500
+
     return app
