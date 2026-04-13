@@ -37,15 +37,17 @@ def create_app():
     
     @app.errorhandler(Exception)
     def handle_exception(e):
-        # Pass through HTTP errors
-        if isinstance(e, HTTPException):
-            return e
-
         # If it's an API route, return a JSON response
         if request.path.startswith('/api/'):
+            if isinstance(e, HTTPException):
+                return jsonify({"error": e.description}), e.code
             import logging
             logging.error(f"API Error: {e}", exc_info=True)
-            return jsonify(error="Internal Server Error: " + str(e)), 500
+            return jsonify({"error": "Internal Server Error: " + str(e)}), 500
+            
+        # Pass through HTTP errors for non-API
+        if isinstance(e, HTTPException):
+            return e
             
         # Return default 500 HTML page for non-API routes
         return "Internal Server Error", 500

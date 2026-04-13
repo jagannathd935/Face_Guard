@@ -70,7 +70,8 @@
       try {
         d = JSON.parse(text);
       } catch (e) {
-        show('Server did not return JSON. Check that you are logged in as a student.', 'err');
+        let snippet = text.substring(0, 100).replace(/</g, '<').replace(/>/g, '>'); 
+        show('Server did not return JSON. It said: ' + snippet, 'err');
         return;
       }
       if (!r.ok) {
