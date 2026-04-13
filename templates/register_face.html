@@ -24,7 +24,7 @@
     msg.textContent = t;
     msg.className = 'show ' + (cls || 'info');
   }
-  fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+  fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(d => {
     if (!d.logged_in || d.role !== 'student') window.location.href = '/login';
   });
   document.getElementById('start-cam').addEventListener('click', async () => {
@@ -63,7 +63,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ images }),
-        credentials: 'same-origin'
+        credentials: 'include'
       });
       const text = await r.text();
       let d;

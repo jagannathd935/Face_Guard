@@ -17,6 +17,10 @@ def create_app():
     app.config["SECRET_KEY"] = SECRET_KEY
     app.config["DATABASE"] = DATABASE_PATH
     app.config["FACE_MODEL_DIR"] = FACE_MODEL_DIR
+    
+    # Render/Production Cookie configuration to prevent lost sessions
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "None"
 
     from app import db
 
