@@ -71,7 +71,7 @@
     const frames = [];
     for (let i = 0; i < n; i++) {
       ctx.drawImage(vid, 0, 0, w, h);
-      frames.push(cv.toDataURL('image/jpeg', 0.6));
+      frames.push(cv.toDataURL('image/jpeg', 0.25));
       await new Promise(r => setTimeout(r, intervalMs));
     }
     return frames;
@@ -106,7 +106,7 @@
     cv.width = w;
     cv.height = h;
     ctx.drawImage(vid, 0, 0, w, h);
-    const image = cv.toDataURL('image/jpeg', 0.8);
+    const image = cv.toDataURL('image/jpeg', 0.3);
     const r = await fetch('/api/liveness/verify-pose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -150,7 +150,7 @@
     cv.width = w;
     cv.height = h;
     ctx.drawImage(vid, 0, 0, w, h);
-    const image = cv.toDataURL('image/jpeg', 0.9);
+    const image = cv.toDataURL('image/jpeg', 0.3);
     
     show('Verifying face and distance...', 'info');
     const r = await fetch('/api/attendance/mark', {

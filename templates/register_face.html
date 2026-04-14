@@ -63,7 +63,7 @@
     for (let i = 0; i < 6; i++) {
       show(steps[i], 'info');
       ctx.drawImage(vid, 0, 0, w, h);
-      images.push(cv.toDataURL('image/jpeg', 0.75));
+      images.push(cv.toDataURL('image/jpeg', 0.3));
       await new Promise(r => setTimeout(r, 600)); // slightly longer wait to allow user to turn head
     }
     document.getElementById('capture').disabled = true;
