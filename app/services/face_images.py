@@ -25,32 +25,39 @@ def b64_to_bgr_image(b64_str: str) -> np.ndarray | None:
     return img
 
 
-def _detect_faces(bgr: np.ndarray):
-    """Run MediaPipe FaceDetector (Tasks API) on a BGR image."""
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
+def _create_face_detector():
     options = FaceDetectorOptions(
         base_options=BaseOptions(model_asset_path=_MODEL_PATH),
         min_detection_confidence=0.5,
     )
-    with FaceDetector.create_from_options(options) as detector:
+    return FaceDetector.create_from_options(options)
+
+
+def _detect_faces(bgr: np.ndarray, detector: FaceDetector | None = None):
+    """Run MediaPipe FaceDetector (Tasks API) on a BGR image."""
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+    if detector is None:
+        with _create_face_detector() as local_detector:
+            result = local_detector.detect(mp_image)
+    else:
         result = detector.detect(mp_image)
     return result.detections
 
 
-def largest_face_gray(bgr: np.ndarray) -> np.ndarray | None:
+def largest_face_gray(bgr: np.ndarray, detector: FaceDetector | None = None) -> np.ndarray | None:
     if bgr is None or bgr.size == 0:
         return None
 
     h, w = bgr.shape[:2]
-    max_w = 640
+    max_w = 480
     if w > max_w:
         s = max_w / float(w)
         bgr = cv2.resize(bgr, (max_w, int(h * s)), interpolation=cv2.INTER_AREA)
         h, w = bgr.shape[:2]
 
-    detections = _detect_faces(bgr)
+    detections = _detect_faces(bgr, detector=detector)
 
     if not detections:
         return None

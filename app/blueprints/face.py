@@ -6,7 +6,7 @@ from app.blueprints.auth import login_required
 from app.db import get_db
 from config import USE_FR_ON_REGISTER
 from app.services import face_fr_optional
-from app.services.face_images import b64_to_bgr_image, largest_face_gray
+from app.services.face_images import b64_to_bgr_image, largest_face_gray, _create_face_detector
 from app.services.face_lbph import save_model, train_lbph
 
 bp = Blueprint("face", __name__)
@@ -22,17 +22,18 @@ def register_face():
 
     gray_faces = []
     fr_encodings = []
-    for b64 in images[:12]:
-        img = b64_to_bgr_image(b64)
-        if img is None:
-            continue
-        g = largest_face_gray(img)
-        if g is not None:
-            gray_faces.append(g)
-        if USE_FR_ON_REGISTER and face_fr_optional.HAS_FACE_RECOGNITION:
-            enc = face_fr_optional.encoding_from_bgr(img)
-            if enc is not None:
-                fr_encodings.append(enc)
+    with _create_face_detector() as detector:
+        for b64 in images[:6]:
+            img = b64_to_bgr_image(b64)
+            if img is None:
+                continue
+            g = largest_face_gray(img, detector=detector)
+            if g is not None:
+                gray_faces.append(g)
+            if USE_FR_ON_REGISTER and face_fr_optional.HAS_FACE_RECOGNITION:
+                enc = face_fr_optional.encoding_from_bgr(img)
+                if enc is not None:
+                    fr_encodings.append(enc)
 
     if len(gray_faces) < 1 and len(fr_encodings) < 1:
         return jsonify({"error": "No face detected in provided images"}), 400

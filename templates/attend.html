@@ -25,10 +25,25 @@
   const vid = document.getElementById('vid');
   const cv = document.getElementById('cv');
   let stream;
+
   function show(t, cls) {
     msg.textContent = t;
     msg.className = 'show ' + (cls || 'info');
   }
+
+  async function parseJsonResponse(r) {
+    const text = await r.text();
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch (e) {
+      return {
+        ok: false,
+        status: r.status,
+        raw: text,
+      };
+    }
+  }
+
   const params = new URLSearchParams(location.search);
   const pre = params.get('code');
   if (pre) {
@@ -45,9 +60,9 @@
 
   document.getElementById('start-cam').addEventListener('click', async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user', width: { ideal: 800 }, height: { ideal: 600 } }, 
-        audio: false 
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
       });
       vid.srcObject = stream;
       document.getElementById('blink').disabled = false;
@@ -62,16 +77,16 @@
   async function grabFrames(n, intervalMs) {
     const ctx = cv.getContext('2d');
     let w = vid.videoWidth, h = vid.videoHeight;
-    if (Math.max(w, h) > 800) {
-      if (w > h) { h = Math.round((h * 800) / w); w = 800; }
-      else { w = Math.round((w * 800) / h); h = 800; }
+    if (Math.max(w, h) > 480) {
+      if (w > h) { h = Math.round((h * 480) / w); w = 480; }
+      else { w = Math.round((w * 480) / h); h = 480; }
     }
     cv.width = w;
     cv.height = h;
     const frames = [];
     for (let i = 0; i < n; i++) {
       ctx.drawImage(vid, 0, 0, w, h);
-      frames.push(cv.toDataURL('image/jpeg', 0.25));
+      frames.push(cv.toDataURL('image/jpeg', 0.2));
       await new Promise(r => setTimeout(r, intervalMs));
     }
     return frames;
@@ -79,17 +94,23 @@
 
   document.getElementById('blink').addEventListener('click', async () => {
     if (!vid.videoWidth) { show('Start the camera first.', 'err'); return; }
-    show('Recording… blink once or twice.', 'info');
-    const frames = await grabFrames(24, 90);
+    show('Recording blink...', 'info');
+    const frames = await grabFrames(12, 120);
     const r = await fetch('/api/liveness/verify-blink', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ frames }),
       credentials: 'same-origin'
     });
-    const d = await r.json();
+    const parsed = await parseJsonResponse(r);
+    if (!parsed.ok) {
+      const snippet = (parsed.raw || '').slice(0, 160).replace(/\s+/g, ' ');
+      show('Server crashed before returning JSON. Response: ' + snippet, 'err');
+      return;
+    }
+    const d = parsed.data;
     if (!r.ok) {
-      show(d.error || d.hint || 'Blink not detected — try again, better light.', 'err');
+      show(d.error || d.hint || 'Blink not detected. Try again in better light.', 'err');
       return;
     }
     show('Liveness OK. Capture face to finish.', 'ok');
@@ -99,21 +120,27 @@
   async function verifyPose(expected) {
     const ctx = cv.getContext('2d');
     let w = vid.videoWidth, h = vid.videoHeight;
-    if (Math.max(w, h) > 1280) {
-      if (w > h) { h = Math.round((h * 1280) / w); w = 1280; }
-      else { w = Math.round((w * 1280) / h); h = 1280; }
+    if (Math.max(w, h) > 640) {
+      if (w > h) { h = Math.round((h * 640) / w); w = 640; }
+      else { w = Math.round((w * 640) / h); h = 640; }
     }
     cv.width = w;
     cv.height = h;
     ctx.drawImage(vid, 0, 0, w, h);
-    const image = cv.toDataURL('image/jpeg', 0.3);
+    const image = cv.toDataURL('image/jpeg', 0.22);
     const r = await fetch('/api/liveness/verify-pose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ expected, image }),
       credentials: 'same-origin'
     });
-    const d = await r.json();
+    const parsed = await parseJsonResponse(r);
+    if (!parsed.ok) {
+      const snippet = (parsed.raw || '').slice(0, 160).replace(/\s+/g, ' ');
+      show('Server crashed before returning JSON. Response: ' + snippet, 'err');
+      return;
+    }
+    const d = parsed.data;
     if (d.ok) {
       show('Pose liveness OK. You can mark attendance.', 'ok');
       document.getElementById('mark').disabled = false;
@@ -127,7 +154,7 @@
   document.getElementById('mark').addEventListener('click', async () => {
     const session_code = document.getElementById('session_code').value.trim().toUpperCase();
     if (!session_code) { show('Enter session code', 'err'); return; }
-    
+
     let lat = null, lng = null;
     try {
       show('Checking distance to classroom...', 'info');
@@ -143,15 +170,15 @@
 
     const ctx = cv.getContext('2d');
     let w = vid.videoWidth, h = vid.videoHeight;
-    if (Math.max(w, h) > 640) {
-      if (w > h) { h = Math.round((h * 640) / w); w = 640; }
-      else { w = Math.round((w * 640) / h); h = 640; }
+    if (Math.max(w, h) > 480) {
+      if (w > h) { h = Math.round((h * 480) / w); w = 480; }
+      else { w = Math.round((w * 480) / h); h = 480; }
     }
     cv.width = w;
     cv.height = h;
     ctx.drawImage(vid, 0, 0, w, h);
-    const image = cv.toDataURL('image/jpeg', 0.3);
-    
+    const image = cv.toDataURL('image/jpeg', 0.22);
+
     show('Verifying face and distance...', 'info');
     const r = await fetch('/api/attendance/mark', {
       method: 'POST',
@@ -159,7 +186,13 @@
       body: JSON.stringify({ session_code, image, lat, lng }),
       credentials: 'same-origin'
     });
-    const d = await r.json();
+    const parsed = await parseJsonResponse(r);
+    if (!parsed.ok) {
+      const snippet = (parsed.raw || '').slice(0, 160).replace(/\s+/g, ' ');
+      show('Server crashed before returning JSON. Response: ' + snippet, 'err');
+      return;
+    }
+    const d = parsed.data;
     if (!r.ok) { show(d.error || 'Failed', 'err'); return; }
     if (d.duplicate) show('Already marked for this session.', 'info');
     else show('Attendance marked successfully.', 'ok');

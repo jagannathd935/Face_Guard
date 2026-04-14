@@ -20,18 +20,34 @@
   const vid = document.getElementById('vid');
   const cv = document.getElementById('cv');
   let stream;
+
   function show(t, cls) {
     msg.textContent = t;
     msg.className = 'show ' + (cls || 'info');
   }
+
+  async function parseJsonResponse(r) {
+    const text = await r.text();
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch (e) {
+      return {
+        ok: false,
+        status: r.status,
+        raw: text,
+      };
+    }
+  }
+
   fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(d => {
     if (!d.logged_in || d.role !== 'student') window.location.href = '/login';
   });
+
   document.getElementById('start-cam').addEventListener('click', async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user', width: { ideal: 800 }, height: { ideal: 600 } }, 
-        audio: false 
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
       });
       vid.srcObject = stream;
       document.getElementById('capture').disabled = false;
@@ -40,34 +56,36 @@
       show('Camera permission denied or unavailable.', 'err');
     }
   });
+
   document.getElementById('capture').addEventListener('click', async () => {
     const ctx = cv.getContext('2d');
     let w = vid.videoWidth;
     let h = vid.videoHeight;
-    const max_dim = 800;
-    if (Math.max(w, h) > max_dim) {
-      if (w > h) { h = Math.round((h * max_dim) / w); w = max_dim; }
-      else { w = Math.round((w * max_dim) / h); h = max_dim; }
+    const maxDim = 480;
+    if (Math.max(w, h) > maxDim) {
+      if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+      else { w = Math.round((w * maxDim) / h); h = maxDim; }
     }
     cv.width = w;
     cv.height = h;
+
     const images = [];
     const steps = [
-      "Look straight ahead...",
-      "Look slightly left...",
-      "Look slightly right...",
-      "Look slightly up...",
-      "Look slightly down...",
-      "Smile slightly..."
+      'Look straight ahead...',
+      'Look slightly left...',
+      'Look slightly right...',
+      'Look slightly up...'
     ];
-    for (let i = 0; i < 6; i++) {
+
+    for (let i = 0; i < steps.length; i++) {
       show(steps[i], 'info');
       ctx.drawImage(vid, 0, 0, w, h);
-      images.push(cv.toDataURL('image/jpeg', 0.3));
-      await new Promise(r => setTimeout(r, 600)); // slightly longer wait to allow user to turn head
+      images.push(cv.toDataURL('image/jpeg', 0.22));
+      await new Promise(r => setTimeout(r, 500));
     }
+
     document.getElementById('capture').disabled = true;
-    show('Saving face profile (usually a few seconds)…', 'info');
+    show('Saving face profile...', 'info');
     try {
       const r = await fetch('/api/face/register', {
         method: 'POST',
@@ -75,20 +93,18 @@
         body: JSON.stringify({ images }),
         credentials: 'include'
       });
-      const text = await r.text();
-      let d;
-      try {
-        d = JSON.parse(text);
-      } catch (e) {
-        let snippet = text.substring(0, 100).replace(/</g, '<').replace(/>/g, '>'); 
-        show('Server did not return JSON. It said: ' + snippet, 'err');
+      const parsed = await parseJsonResponse(r);
+      if (!parsed.ok) {
+        const snippet = (parsed.raw || '').slice(0, 160).replace(/\s+/g, ' ');
+        show('Server crashed before returning JSON. Response: ' + snippet, 'err');
         return;
       }
+      const d = parsed.data;
       if (!r.ok) {
         show(d.error || ('Request failed (' + r.status + ')'), 'err');
         return;
       }
-      show('Registered — LBPH samples: ' + d.lbph_samples + (d.face_recognition_lib ? ', FR samples: ' + d.fr_samples : ''), 'ok');
+      show('Registered. Samples saved: ' + d.lbph_samples, 'ok');
     } catch (e) {
       show('Network error: ' + (e.message || String(e)), 'err');
     } finally {
