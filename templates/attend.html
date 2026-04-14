@@ -45,7 +45,10 @@
 
   document.getElementById('start-cam').addEventListener('click', async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user', width: { ideal: 800 }, height: { ideal: 600 } }, 
+        audio: false 
+      });
       vid.srcObject = stream;
       document.getElementById('blink').disabled = false;
       document.getElementById('pose-left').disabled = false;
@@ -58,12 +61,17 @@
 
   async function grabFrames(n, intervalMs) {
     const ctx = cv.getContext('2d');
-    cv.width = vid.videoWidth;
-    cv.height = vid.videoHeight;
+    let w = vid.videoWidth, h = vid.videoHeight;
+    if (Math.max(w, h) > 800) {
+      if (w > h) { h = Math.round((h * 800) / w); w = 800; }
+      else { w = Math.round((w * 800) / h); h = 800; }
+    }
+    cv.width = w;
+    cv.height = h;
     const frames = [];
     for (let i = 0; i < n; i++) {
-      ctx.drawImage(vid, 0, 0);
-      frames.push(cv.toDataURL('image/jpeg', 0.75));
+      ctx.drawImage(vid, 0, 0, w, h);
+      frames.push(cv.toDataURL('image/jpeg', 0.6));
       await new Promise(r => setTimeout(r, intervalMs));
     }
     return frames;
@@ -90,9 +98,14 @@
 
   async function verifyPose(expected) {
     const ctx = cv.getContext('2d');
-    cv.width = vid.videoWidth;
-    cv.height = vid.videoHeight;
-    ctx.drawImage(vid, 0, 0);
+    let w = vid.videoWidth, h = vid.videoHeight;
+    if (Math.max(w, h) > 1280) {
+      if (w > h) { h = Math.round((h * 1280) / w); w = 1280; }
+      else { w = Math.round((w * 1280) / h); h = 1280; }
+    }
+    cv.width = w;
+    cv.height = h;
+    ctx.drawImage(vid, 0, 0, w, h);
     const image = cv.toDataURL('image/jpeg', 0.8);
     const r = await fetch('/api/liveness/verify-pose', {
       method: 'POST',
@@ -129,9 +142,14 @@
     }
 
     const ctx = cv.getContext('2d');
-    cv.width = vid.videoWidth;
-    cv.height = vid.videoHeight;
-    ctx.drawImage(vid, 0, 0);
+    let w = vid.videoWidth, h = vid.videoHeight;
+    if (Math.max(w, h) > 640) {
+      if (w > h) { h = Math.round((h * 640) / w); w = 640; }
+      else { w = Math.round((w * 640) / h); h = 640; }
+    }
+    cv.width = w;
+    cv.height = h;
+    ctx.drawImage(vid, 0, 0, w, h);
     const image = cv.toDataURL('image/jpeg', 0.9);
     
     show('Verifying face and distance...', 'info');
