@@ -21,5 +21,5 @@ COPY . .
 # Expose port (Render automatically uses PORT env var, but good practice to expose 10000)
 EXPOSE 10000
 
-# Set gunicorn to bind to the Render port and use 1 worker to stay within 512MB free tier RAM
-CMD ["gunicorn", "--workers=1", "--threads=2", "--bind=0.0.0.0:10000", "run:app"]
+# Give heavy vision requests more time on Render's free tier.
+CMD ["gunicorn", "--workers=1", "--threads=2", "--timeout=120", "--bind=0.0.0.0:10000", "run:app"]

@@ -12,18 +12,25 @@ from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions
 _MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "face_landmarker.task"))
 
 
-def _get_landmarks(bgr: np.ndarray):
-    """Run FaceLandmarker (Tasks API) and return landmarks for the first face."""
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
+def _create_landmarker():
     options = FaceLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=_MODEL_PATH),
         num_faces=1,
         min_face_detection_confidence=0.5,
         min_tracking_confidence=0.5,
     )
-    with FaceLandmarker.create_from_options(options) as landmarker:
+    return FaceLandmarker.create_from_options(options)
+
+
+def _get_landmarks(bgr: np.ndarray, landmarker: FaceLandmarker | None = None):
+    """Run FaceLandmarker (Tasks API) and return landmarks for the first face."""
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+    if landmarker is None:
+        with _create_landmarker() as local_landmarker:
+            result = local_landmarker.detect(mp_image)
+    else:
         result = landmarker.detect(mp_image)
 
     if not result.face_landmarks:
@@ -51,11 +58,11 @@ def _ear_from_points(pts: list[np.ndarray]) -> float:
     return (a + b) / (2.0 * c)
 
 
-def ear_for_bgr(bgr: np.ndarray) -> float | None:
+def ear_for_bgr(bgr: np.ndarray, landmarker: FaceLandmarker | None = None) -> float | None:
     if bgr is None or bgr.size == 0:
         return None
     h, w = bgr.shape[:2]
-    landmarks = _get_landmarks(bgr)
+    landmarks = _get_landmarks(bgr, landmarker=landmarker)
     if landmarks is None:
         return None
     le = [_lm_point(landmarks[i], w, h) for i in LEFT_EYE]
@@ -65,10 +72,11 @@ def ear_for_bgr(bgr: np.ndarray) -> float | None:
 
 def detect_blink_in_frames(bgr_frames: list[np.ndarray], ear_open=0.22, ear_closed=0.19) -> bool:
     ears = []
-    for f in bgr_frames:
-        e = ear_for_bgr(f)
-        if e is not None:
-            ears.append(e)
+    with _create_landmarker() as landmarker:
+        for f in bgr_frames:
+            e = ear_for_bgr(f, landmarker=landmarker)
+            if e is not None:
+                ears.append(e)
     if len(ears) < 4:
         return False
     saw_low = False
