@@ -17,10 +17,10 @@ def create_app():
     app.config["SECRET_KEY"] = SECRET_KEY
     app.config["DATABASE"] = DATABASE_PATH
     app.config["FACE_MODEL_DIR"] = FACE_MODEL_DIR
-    
-    # Render/Production Cookie configuration to prevent lost sessions
-    app.config["SESSION_COOKIE_SECURE"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "None"
+
+    is_production = os.environ.get("RENDER") == "true" or os.environ.get("FLASK_ENV") == "production"
+    app.config["SESSION_COOKIE_SECURE"] = is_production
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax" if not is_production else "None"
 
     from app import db
 
@@ -38,22 +38,19 @@ def create_app():
 
     from flask import request, jsonify
     from werkzeug.exceptions import HTTPException
-    
+
     @app.errorhandler(Exception)
     def handle_exception(e):
-        # If it's an API route, return a JSON response
         if request.path.startswith('/api/'):
             if isinstance(e, HTTPException):
                 return jsonify({"error": e.description}), e.code
             import logging
             logging.error(f"API Error: {e}", exc_info=True)
             return jsonify({"error": "Internal Server Error: " + str(e)}), 500
-            
-        # Pass through HTTP errors for non-API
+
         if isinstance(e, HTTPException):
             return e
-            
-        # Return default 500 HTML page for non-API routes
+
         return "Internal Server Error", 500
 
     return app

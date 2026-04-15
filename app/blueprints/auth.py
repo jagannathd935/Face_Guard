@@ -38,12 +38,12 @@ def register():
     password = data.get("password") or ""
     role = (data.get("role") or "").strip().lower()
     org_code = (data.get("org_code") or "").strip().upper()
-    
+
     if not username or not password or not org_code:
         return jsonify({"error": "username, password, and organization code required"}), 400
     if role not in ("teacher", "student", "admin"):
         return jsonify({"error": "invalid role"}), 400
-        
+
     db = get_db()
     try:
         db.execute(
@@ -62,8 +62,10 @@ def login():
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
+    requested_role = (data.get("role") or "").strip().lower()
     if not username or not password:
         return jsonify({"error": "username and password required"}), 400
+
     db = get_db()
     row = db.execute(
         "SELECT id, password_hash, role, org_code FROM users WHERE username = ?",
@@ -71,6 +73,11 @@ def login():
     ).fetchone()
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"error": "Invalid credentials"}), 401
+
+    if requested_role and row["role"] != requested_role:
+        session.clear()
+        return jsonify({"error": f"This account is registered as {row['role']}"}), 403
+
     session.clear()
     session["user_id"] = row["id"]
     session["role"] = row["role"]
@@ -108,19 +115,18 @@ def setup_profile():
     uid = session.get("user_id")
     role = session.get("role")
     full_name = data.get("full_name")
-    
+
     if not full_name:
         return jsonify({"error": "Full name is required"}), 400
-    
+
     security_question = data.get("security_question", "").strip()
     security_answer = data.get("security_answer", "").strip().lower()
     if not security_question or not security_answer:
         return jsonify({"error": "Security question and answer are required"}), 400
-        
+
     db = get_db()
-    
+
     try:
-        # Save security questions to main users table
         db.execute(
             "UPDATE users SET security_question = ?, security_answer_hash = ? WHERE id = ?",
             (security_question, generate_password_hash(security_answer), uid)
@@ -147,7 +153,7 @@ def setup_profile():
     except Exception as e:
         db.rollback()
         return jsonify({"error": str(e)}), 500
-        
+
     return jsonify({"ok": True})
 
 
@@ -157,7 +163,7 @@ def get_profile():
     uid = session.get("user_id")
     role = session.get("role")
     db = get_db()
-    
+
     profile = None
     if role == "student":
         row = db.execute("SELECT * FROM student_profiles WHERE user_id = ?", (uid,)).fetchone()
@@ -169,10 +175,10 @@ def get_profile():
         if row:
             profile = dict(row)
             profile.pop("user_id", None)
-            
+
     if not profile:
         return jsonify({"ok": True, "has_profile": False})
-        
+
     return jsonify({"ok": True, "has_profile": True, "profile": profile})
 
 
@@ -182,12 +188,12 @@ def recover_account():
     username = (data.get("username") or "").strip()
     if not username:
         return jsonify({"error": "Username required"}), 400
-        
+
     db = get_db()
     row = db.execute("SELECT id, security_question FROM users WHERE username = ?", (username,)).fetchone()
     if not row or not row["security_question"]:
         return jsonify({"error": "No security question set for this user."}), 404
-        
+
     return jsonify({"ok": True, "user_id": row["id"], "security_question": row["security_question"]})
 
 
@@ -197,16 +203,16 @@ def reset_password():
     user_id = data.get("user_id")
     answer = (data.get("security_answer") or "").strip().lower()
     new_password = data.get("new_password") or ""
-    
+
     if not user_id or not answer or not new_password:
         return jsonify({"error": "Missing required fields"}), 400
-        
+
     db = get_db()
     row = db.execute("SELECT security_answer_hash FROM users WHERE id = ?", (user_id,)).fetchone()
     if not row or not check_password_hash(row["security_answer_hash"], answer):
         return jsonify({"error": "Incorrect security answer."}), 401
-        
+
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(new_password), user_id))
     db.commit()
-    
+
     return jsonify({"ok": True})
