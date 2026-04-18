@@ -6,7 +6,7 @@
   <title>{% block title %}FaceGuard{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <meta name="theme-color" content="#d946ef">
+  <meta name="theme-color" content="#3b82f6">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
   <script>
     // Check initial theme before render to avoid flash
@@ -70,6 +70,18 @@
         });
       });
     }
+
+    // CSRF Protection for AJAX
+    const csrfToken = "{{ csrf_token() }}";
+    const originalFetch = window.fetch;
+    window.fetch = function() {
+        let args = Array.from(arguments);
+        if (args.length >= 2 && args[1].method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(args[1].method.toUpperCase())) {
+            args[1].headers = args[1].headers || {};
+            args[1].headers['X-CSRFToken'] = csrfToken;
+        }
+        return originalFetch.apply(this, args);
+    };
   </script>
 </body>
 </html>

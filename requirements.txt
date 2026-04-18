@@ -7,6 +7,11 @@ pandas>=2.0.0
 openpyxl>=3.1.0
 reportlab>=4.0.0
 mediapipe>=0.10.0
+psycopg2-binary>=2.9.0
+python-dotenv>=1.0.0
+Flask-SQLAlchemy>=3.1.0
+Flask-Migrate>=4.0.0
+Flask-WTF>=1.2.0
 
 # Optional: 128-d encodings (requires dlib — use a prebuilt wheel on Windows, then:)
 # face_recognition>=1.3.0

@@ -19,6 +19,24 @@
   <button type="button" class="btn" id="join">Join session</button>
 </div>
 <div class="card">
+  <h2>Your Attendance History</h2>
+  <div style="background: var(--input-bg); border-radius: var(--radius); padding: 1rem; border: 1px solid var(--glass-border); overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; text-align: left; color: var(--text-primary); font-size: 0.9rem;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--glass-border);">
+          <th style="padding: 0.5rem;">Subject</th>
+          <th style="padding: 0.5rem;">Code</th>
+          <th style="padding: 0.5rem;">Marked At</th>
+        </tr>
+      </thead>
+      <tbody id="attendance-list">
+        <tr><td colspan="3" style="text-align:center; padding:1rem; opacity:0.6;">Loading history...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
   <h2>Next steps</h2>
   <ol class="small">
     <li>Register your face once (good lighting, face the camera).</li>
@@ -55,6 +73,22 @@
       } else {
         document.getElementById('profile-info').innerHTML = 'Profile incomplete. <a href="/complete-profile">Complete now</a>';
       }
+    });
+
+    // Fetch attendance history
+    fetch('/api/attendance/mine', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+      const tbody = document.getElementById('attendance-list');
+      if (!d.records || d.records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:1rem; opacity:0.6;">No scans recorded yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = d.records.map(r => `
+        <tr style="border-bottom: 1px solid var(--glass-border);">
+          <td style="padding: 0.5rem; color: var(--accent); font-weight: 500;">${r.subject}</td>
+          <td style="padding: 0.5rem;">${r.session_code}</td>
+          <td style="padding: 0.5rem; opacity: 0.8;">${r.marked_at}</td>
+        </tr>
+      `).join('');
     });
   });
   document.getElementById('logout').addEventListener('click', async () => {

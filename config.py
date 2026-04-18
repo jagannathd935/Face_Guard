@@ -1,9 +1,18 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # Check if deployed on Render with a Persistent Disk mounted at /var/data
 INSTANCE_DIR = os.environ.get("RENDER_DISK_PATH", os.path.join(BASE_DIR, "instance"))
 DATABASE_PATH = os.path.join(INSTANCE_DIR, "faceguard.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+SQLALCHEMY_DATABASE_URI = DATABASE_URL or f"sqlite:///{DATABASE_PATH}"
+SQLALCHEMY_TRACK_MODIFICATIONS = False
 FACE_MODEL_DIR = os.path.join(INSTANCE_DIR, "face_models")
 
 
