@@ -6,10 +6,11 @@ from flask import Blueprint, current_app, jsonify, request, session
 from sqlalchemy import select, and_
 from app.blueprints.auth import login_required
 from app.db import db
-from app.db_models import User, ClassSession, SessionJoin, FaceProfile, Attendance
+from app.db_models import User, ClassSession, SessionJoin, FaceProfile, Attendance, Subject
 from app.services import face_fr_optional, liveness_mp
-from app.services.face_images import b64_to_bgr_image, largest_face_gray
 from app.services.face_lbph import load_model, lbph_distance
+from app.services.face_structure import calculate_facial_ratios, compare_structures
+import json
 from config import FACE_MATCH_TOLERANCE, LBPH_MATCH_MAX_DISTANCE, LIVENESS_TOKEN_SECONDS
 
 bp = Blueprint("attendance", __name__)
@@ -81,6 +82,21 @@ def _verify_face_profile(prof, live_gray, live_bgr) -> tuple[bool, str, float | 
     if lbph_ok is not None: return lbph_ok, "Face mismatch (LBPH)", dist_out
     return fr_ok, "Face mismatch (embedding)", dist_out
 
+def _verify_aiml_structure(prof, live_bgr) -> tuple[bool, str]:
+    if not prof.structure_json:
+        return True, "" # Skip if no saved structure
+    
+    saved = json.loads(prof.structure_json)
+    live = calculate_facial_ratios(live_bgr)
+    if not live:
+        return False, "Could not analyze face structure. Ensure face is clear."
+    
+    match, diff = compare_structures(saved, live)
+    if not match:
+        return False, f"Structural mismatch (AI). Face does not match registered profile."
+    
+    return True, ""
+
 @bp.route("/attendance/mark", methods=["POST"])
 @login_required("student")
 def mark_attendance():
@@ -117,7 +133,8 @@ def mark_attendance():
         if s_lat is None or s_lng is None:
             return jsonify({"error": "GPS location required"}), 403
         dist = haversine(sess.lat, sess.lng, s_lat, s_lng)
-        if dist > 60: return jsonify({"error": f"Too far ({int(dist)}m)"}), 403
+        # 150 meters threshold to account for indoor GPS drift
+        if dist > 150: return jsonify({"error": f"Too far ({int(dist)}m)"}), 403
 
     # Network
     s_prefix = _network_prefix_for_request()
@@ -140,6 +157,11 @@ def mark_attendance():
     ok_face, reason, dist = _verify_face_profile(prof, gray, img)
     if not ok_face:
         return jsonify({"ok": False, "error": reason, "distance": dist}), 400
+
+    # AIML Structural Verification
+    ok_struct, struct_reason = _verify_aiml_structure(prof, img)
+    if not ok_struct:
+        return jsonify({"ok": False, "error": struct_reason}), 400
 
     try:
         att = Attendance(session_id=sess.id, student_id=student_id)

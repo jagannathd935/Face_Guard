@@ -157,12 +157,26 @@
 
     let lat = null, lng = null;
     try {
-      show('Checking distance to classroom...', 'info');
-      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+      show('Acquiring precise GPS lock...', 'info');
+      if (!navigator.geolocation) throw new Error("Geolocation not supported");
+
+      const pos = await new Promise((res, rej) => {
+        navigator.geolocation.getCurrentPosition(res, rej, { 
+          enableHighAccuracy: true, 
+          timeout: 15000, 
+          maximumAge: 0 
+        });
+      });
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
+      show('Location secured.', 'ok');
     } catch (e) {
-      if (!confirm("Could not get GPS location. The server might reject your attendance if the teacher enforced geofencing. Continue?")) {
+      console.error("GPS Error:", e);
+      let errMsg = "Could not get GPS location.";
+      if (e.code === 1) errMsg = "Location permission denied. Please allow location access in your browser settings.";
+      else if (e.code === 3) errMsg = "GPS acquisition timed out. Try moving near a window.";
+      
+      if (!confirm(errMsg + "\n\nContinue anyway? (Marking might fail if the teacher enforces geofencing)")) {
         show('Cancelled marking.', 'info');
         return;
       }

@@ -30,5 +30,5 @@ SECRET_KEY = os.environ.get("FACEGUARD_SECRET_KEY", "dev-change-me-in-production
 SESSION_CODE_TTL_MINUTES = int(os.environ.get("FACEGUARD_SESSION_TTL", "10"))
 FACE_MATCH_TOLERANCE = float(os.environ.get("FACEGUARD_FACE_TOLERANCE", "0.55"))
 # LBPH: lower distance = better match (typical same-person < 70–90)
-LBPH_MATCH_MAX_DISTANCE = float(os.environ.get("FACEGUARD_LBPH_MAX_DIST", "85"))
+LBPH_MATCH_MAX_DISTANCE = float(os.environ.get("FACEGUARD_LBPH_MAX_DIST", "75.0"))
 LIVENESS_TOKEN_SECONDS = 90

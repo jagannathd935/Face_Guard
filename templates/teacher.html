@@ -167,7 +167,12 @@
     let lat = null, lng = null;
     try {
       show('Acquiring secure GPS lock...', 'info');
-      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
+      const pos = await new Promise((res, rej) => {
+        navigator.geolocation.getCurrentPosition(res, rej, { 
+          enableHighAccuracy: true, 
+          timeout: 15000 
+        });
+      });
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
     } catch (e) {

@@ -8,6 +8,8 @@ from config import USE_FR_ON_REGISTER
 from app.services import face_fr_optional
 from app.services.face_images import b64_to_bgr_image, largest_face_gray, _create_face_detector
 from app.services.face_lbph import save_model, train_lbph
+from app.services.face_structure import calculate_facial_ratios
+import json
 
 bp = Blueprint("face", __name__)
 
@@ -29,6 +31,11 @@ def register_face():
                 if USE_FR_ON_REGISTER and face_fr_optional.HAS_FACE_RECOGNITION:
                     enc = face_fr_optional.encoding_from_bgr(img)
                     if enc is not None: fr_encodings.append(enc)
+                
+                # AI Structural Fingerprint
+                if "temp_structure" not in session:
+                    struct = calculate_facial_ratios(img)
+                    if struct: session["temp_structure"] = struct
 
     if not gray_faces and not fr_encodings:
         return jsonify({"error": "No face detected"}), 400
@@ -52,12 +59,24 @@ def register_face():
         return jsonify({"error": "Could not build profile"}), 400
 
     try:
+        
+        structure_json = None
+        s_data = session.pop("temp_structure", None)
+        if s_data:
+            structure_json = json.dumps(s_data)
+
         prof = db.session.get(FaceProfile, uid)
         if prof:
             if fr_json: prof.fr_encoding_json = fr_json
             if lbph_rel: prof.lbph_model_relpath = lbph_rel
+            if structure_json: prof.structure_json = structure_json
         else:
-            prof = FaceProfile(user_id=uid, fr_encoding_json=fr_json, lbph_model_relpath=lbph_rel)
+            prof = FaceProfile(
+                user_id=uid, 
+                fr_encoding_json=fr_json, 
+                lbph_model_relpath=lbph_rel,
+                structure_json=structure_json
+            )
             db.session.add(prof)
         db.session.commit()
     except Exception as e:

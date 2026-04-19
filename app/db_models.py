@@ -42,6 +42,7 @@ class FaceProfile(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     fr_encoding_json = db.Column(db.Text)
     lbph_model_relpath = db.Column(db.Text)
+    structure_json = db.Column(db.Text) # AI Structural Fingerprint
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class Attendance(db.Model):
